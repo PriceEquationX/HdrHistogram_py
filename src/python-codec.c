@@ -227,23 +227,23 @@ static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
         ++index;
          
         /* max encodable value must fit in 63 bit */
-        if (value == 0) {
-            int64_t zeros = 1;
+        // if (value == 0) {
+        //     int64_t zeros = 1;
 
-            while (index < max_index && 0 == get_entry(vsrc, index)) {
-                zeros++;
-                index++;
-            }
-            write_index += zig_zag_encode_i64(&dest[write_index], -zeros);
-        }
-        else if (((int64_t) value) < 0) {
-            free(dest);
-            PyErr_SetString(PyExc_OverflowError,
-                            "64-bit overflow - zigzag only supports 63-bit values");
-            return NULL;
-        } else {
+        //     while (index < max_index && 0 == get_entry(vsrc, index)) {
+        //         zeros++;
+        //         index++;
+        //     }
+        //     write_index += zig_zag_encode_i64(&dest[write_index], -zeros);
+        // }
+        // else if (((int64_t) value) < 0) {
+        //     free(dest);
+        //     PyErr_SetString(PyExc_OverflowError,
+        //                     "64-bit overflow - zigzag only supports 63-bit values");
+        //     return NULL;
+        // } else {
             write_index += zig_zag_encode_i64(&dest[write_index], value);
-        }
+        // }
     }
     /* write_index is the exact length of the encoded string */
     res = Py_BuildValue("i", write_index);
@@ -324,10 +324,11 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
                 PyErr_SetString(PyExc_OverflowError, "Decoding error: negative overflow");
                 return NULL;
             }
-            if (value < 0) {
-                /* skip zeros counts */
-                dst_index -= value;
-            } else {
+//  XTXv0 encoding supports negative counts, so doesn't do the zero-run trick - Paul
+//            if (value < 0) {
+//                /* skip zeros counts */
+//                dst_index -= value;
+//            } else {
                 if (value) {
                     if (set_entry(vdst, (int) dst_index, value)) {
                         PyErr_SetString(PyExc_OverflowError, "Value overflows destination counter size");
@@ -340,14 +341,14 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
                     }
                 }
                 ++dst_index;
-            }
+//            }
             /* check for end of decode stream */
             if (src_len == 0) {
                 break;
             }
             if (dst_index >= max_index) {
                 /* overrun */
-                PyErr_Format(PyExc_IndexError, "Destination array overrun index=%lld max index=%d",
+                PyErr_Format(PyExc_IndexError, "Destination array overrun index=%" PRId64 " max index=%d",
                                                dst_index, max_index);
                 return NULL;
             }
@@ -368,7 +369,7 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
     void *vsrc;     /* l: address of source array first entry */
     int max_index;  /* i: entries from 0 to max_index-1 are added */
     int word_size;  /* i: size of each entry in bytes 2,4,8 */
-    uint64_t total_count = 0;
+    int64_t total_count = 0;
     
     if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index, &word_size)) {
         return NULL;
@@ -390,15 +391,15 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
         uint16_t *dst = vdst;
         int index;
         /* check overflow */
+        // for (index=0; index < max_index; ++index) {
+        //     uint16_t value = src[index];
+        //     if (value && (((uint16_t)(dst[index] + value)) < dst[index])) {
+        //         PyErr_SetString(PyExc_OverflowError, "16-bit overflow");
+        //         return NULL;
+        //     }
+        // }
         for (index=0; index < max_index; ++index) {
-            uint16_t value = src[index];
-            if (value && (((uint16_t)(dst[index] + value)) < dst[index])) {
-                PyErr_SetString(PyExc_OverflowError, "16-bit overflow");
-                return NULL;
-            }
-        }
-        for (index=0; index < max_index; ++index) {
-            uint16_t value = src[index];
+            int16_t value = src[index];
             if (value) {
                 dst[index] += value;
                 total_count += value;
@@ -409,15 +410,15 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
         uint32_t *dst = vdst;
         int index;
         /* check overflow */
+        // for (index=0; index < max_index; ++index) {
+        //     uint32_t value = src[index];
+        //     if (value && (((uint32_t)(dst[index] + value)) < dst[index])) {
+        //         PyErr_SetString(PyExc_OverflowError, "32-bit overflow");
+        //         return NULL;
+        //     }
+        // }
         for (index=0; index < max_index; ++index) {
-            uint32_t value = src[index];
-            if (value && (((uint32_t)(dst[index] + value)) < dst[index])) {
-                PyErr_SetString(PyExc_OverflowError, "32-bit overflow");
-                return NULL;
-            }
-        }
-        for (index=0; index < max_index; ++index) {
-            uint32_t value = src[index];
+            int32_t value = src[index];
             if (value) {
                 dst[index] += value;
                 total_count += value;
@@ -428,15 +429,15 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
         uint64_t *dst = vdst;
         int index;
         /* check overflow */
+        // for (index=0; index < max_index; ++index) {
+        //     uint64_t value = src[index];
+        //     if (value && ((dst[index] + value) < dst[index])) {
+        //         PyErr_SetString(PyExc_OverflowError, "64-bit overflow");
+        //         return NULL;
+        //     }
+        // }
         for (index=0; index < max_index; ++index) {
-            uint64_t value = src[index];
-            if (value && ((dst[index] + value) < dst[index])) {
-                PyErr_SetString(PyExc_OverflowError, "64-bit overflow");
-                return NULL;
-            }
-        }
-        for (index=0; index < max_index; ++index) {
-            uint64_t value = src[index];
+            int64_t value = src[index];
             if (value) {
                 dst[index] += value;
                 total_count += value;
@@ -449,14 +450,106 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
     return Py_BuildValue("i", total_count);
 }
 
+/**
+ * Adds 1 array into the other. Checks for potential overflow before adding.
+ * In case of overflow error the destination array is unmodified.
+ */
+static PyObject *py_hdr_sub_array(PyObject *self, PyObject *args) {
+    void *vdst;     /* l: address of destination array first entry */
+    void *vsrc;     /* l: address of source array first entry */
+    int max_index;  /* i: entries from 0 to max_index-1 are added */
+    int word_size;  /* i: size of each entry in bytes 2,4,8 */
+    int64_t total_count = 0;
+    
+    if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index, &word_size)) {
+        return NULL;
+    }
+    if (vsrc == NULL) {
+        PyErr_SetString(PyExc_ValueError, "NULL source array");
+        return NULL;
+    }
+    if (vdst == NULL) {
+        PyErr_SetString(PyExc_ValueError, "NULL destination array");
+        return NULL;
+    }
+    if (max_index < 0) {
+        PyErr_SetString(PyExc_ValueError, "Negative max index");
+        return NULL;
+    }
+    if (word_size == sizeof(uint16_t)) {
+        uint16_t *src = vsrc;
+        uint16_t *dst = vdst;
+        int index;
+        /* check overflow */
+        // for (index=0; index < max_index; ++index) {
+        //     uint16_t value = src[index];
+        //     if (value && (((uint16_t)(dst[index] + value)) < dst[index])) {
+        //         PyErr_SetString(PyExc_OverflowError, "16-bit overflow");
+        //         return NULL;
+        //     }
+        // }
+        for (index=0; index < max_index; ++index) {
+            int16_t value = src[index];
+            if (value) {
+                dst[index] -= value;
+                total_count -= value;
+            }
+        }
+    } else if (word_size == sizeof(uint32_t)) {
+        uint32_t *src = vsrc;
+        uint32_t *dst = vdst;
+        int index;
+        /* check overflow */
+        // for (index=0; index < max_index; ++index) {
+        //     uint32_t value = src[index];
+        //     if (value && (((uint32_t)(dst[index] + value)) < dst[index])) {
+        //         PyErr_SetString(PyExc_OverflowError, "32-bit overflow");
+        //         return NULL;
+        //     }
+        // }
+        for (index=0; index < max_index; ++index) {
+            int32_t value = src[index];
+            if (value) {
+                dst[index] -= value;
+                total_count -= value;
+            }
+        }
+    } else if (word_size == sizeof(uint64_t)) {
+        uint64_t *src = vsrc;
+        uint64_t *dst = vdst;
+        int index;
+        /* check overflow */
+        // for (index=0; index < max_index; ++index) {
+        //     uint64_t value = src[index];
+        //     if (value && ((dst[index] + value) < dst[index])) {
+        //         PyErr_SetString(PyExc_OverflowError, "64-bit overflow");
+        //         return NULL;
+        //     }
+        // }
+        for (index=0; index < max_index; ++index) {
+            int64_t value = src[index];
+            if (value) {
+                dst[index] -= value;
+                total_count -= value;
+            }
+        }
+    } else {
+        PyErr_SetString(PyExc_ValueError, "Invalid word size");
+        return NULL;
+    }
+    return Py_BuildValue("i", total_count);
+}
+
 #define ENCODE_DOCSTRING "Encode a counts array into a V2 varint buffer"
 #define DECODE_DOCSTRING "Decode a V2 varint buffer into a counts array"
 #define ADD_ARRAY_DOCSTRING "Add a counts array to another"
+#define SUB_ARRAY_DOCSTRING "Subtract a counts array from another"
 
 static PyMethodDef HdrhMethods[] = {
     {"encode",  py_hdr_encode, METH_VARARGS, ENCODE_DOCSTRING},
     {"decode",  py_hdr_decode, METH_VARARGS, DECODE_DOCSTRING},
     {"add_array",  py_hdr_add_array, METH_VARARGS, ADD_ARRAY_DOCSTRING},
+    {"sub_array",  py_hdr_sub_array, METH_VARARGS, SUB_ARRAY_DOCSTRING},
     {NULL, NULL, 0, NULL}
 };
 

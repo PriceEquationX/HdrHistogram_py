@@ -32,20 +32,23 @@ import ctypes
 from ctypes import BigEndianStructure
 from ctypes import addressof
 from ctypes import c_byte
-from ctypes import c_ushort
+from ctypes import c_short
+from ctypes import c_int
 from ctypes import c_uint
+from ctypes import c_longlong
 from ctypes import c_ulonglong
 
 from pyhdrh import add_array
+from pyhdrh import sub_array
 from pyhdrh import decode
 from pyhdrh import encode
 import zlib
 
-V2_ENCODING_COOKIE_BASE = 0x1c849303
-V2_COMPRESSION_COOKIE_BASE = 0x1c849304
+XTXV0_ENCODING_COOKIE_BASE = 0x9c849303
+XTXV0_COMPRESSION_COOKIE_BASE = 0x9c849304
 
 # LEB128 + ZigZag require up to 9 bytes per word
-V2_MAX_WORD_SIZE_IN_BYTES = 9
+XTXV0_MAX_WORD_SIZE_IN_BYTES = 9
 
 # allow at most 4 MB counter array size
 # that represents 500,000 8 byte counters
@@ -55,18 +58,18 @@ def get_cookie_base(cookie):
     return cookie & ~0xf0
 
 def get_word_size_in_bytes_from_cookie(cookie):
-    if (get_cookie_base(cookie) == V2_ENCODING_COOKIE_BASE) or \
-       (get_cookie_base(cookie) == V2_COMPRESSION_COOKIE_BASE):
-        return V2_MAX_WORD_SIZE_IN_BYTES
+    if (get_cookie_base(cookie) == XTXV0_ENCODING_COOKIE_BASE) or \
+       (get_cookie_base(cookie) == XTXV0_COMPRESSION_COOKIE_BASE):
+        return XTXV0_MAX_WORD_SIZE_IN_BYTES
     return (cookie & 0xf0) >> 4
 
 def get_encoding_cookie():
     # LSBit of wordsize byte indicates TLZE Encoding
-    return V2_ENCODING_COOKIE_BASE | 0x10
+    return XTXV0_ENCODING_COOKIE_BASE | 0x10
 
 def get_compression_cookie():
     # LSBit of wordsize byte indicates TLZE Encoding
-    return V2_COMPRESSION_COOKIE_BASE | 0x10
+    return XTXV0_COMPRESSION_COOKIE_BASE | 0x10
 
 class HdrCookieException(Exception):
     pass
@@ -100,11 +103,11 @@ payload_header_size = ctypes.sizeof(PayloadHeader)
 
 # list of supported payload counter ctypes, indexed by the word size
 payload_counter_ctype = [None, None,
-                         c_ushort,      # index 2
+                         c_short,      # index 2
                          None,
-                         c_uint,        # index 4
+                         c_int,        # index 4
                          None, None, None,
-                         c_ulonglong]   # index 8
+                         c_longlong]   # index 8
 
 class HdrPayload(object):
     '''A class that wraps the ctypes big endian struct that will hold the
@@ -199,10 +202,10 @@ class HdrPayload(object):
         self.payload = PayloadHeader.from_buffer_copy(self._data)
 
         cookie = self.payload.cookie
-        if get_cookie_base(cookie) != V2_ENCODING_COOKIE_BASE:
+        if get_cookie_base(cookie) != XTXV0_ENCODING_COOKIE_BASE:
             raise HdrCookieException('Invalid cookie: %x' % cookie)
         word_size = get_word_size_in_bytes_from_cookie(cookie)
-        if word_size != V2_MAX_WORD_SIZE_IN_BYTES:
+        if word_size != XTXV0_MAX_WORD_SIZE_IN_BYTES:
             raise HdrCookieException('Invalid V2 cookie: %x' % cookie)
 
     def compress(self, counts_limit):
@@ -336,7 +339,7 @@ class HdrHistogramEncoder(object):
                 raise HdrLengthException('Base64 decoded message too short')
 
             header = ExternalHeader.from_buffer_copy(b64decode)
-            if get_cookie_base(header.cookie) != V2_COMPRESSION_COOKIE_BASE:
+            if get_cookie_base(header.cookie) != XTXV0_COMPRESSION_COOKIE_BASE:
                 raise HdrCookieException()
             if header.length != b64dec_len - ext_header_size:
                 raise HdrLengthException('Decoded length=%d buffer length=%d' %
@@ -352,6 +355,12 @@ class HdrHistogramEncoder(object):
 
     def add(self, other_encoder):
         add_array(addressof(self.get_counts()),
+                  addressof(other_encoder.get_counts()),
+                  self.histogram.counts_len,
+                  self.histogram.word_size)
+
+    def sub(self, other_encoder):
+        sub_array(addressof(self.get_counts()),
                   addressof(other_encoder.get_counts()),
                   self.histogram.counts_len,
                   self.histogram.word_size)

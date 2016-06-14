@@ -100,7 +100,7 @@ class HdrHistogram(object):
         self.highest_trackable_value = highest_trackable_value
         self.significant_figures = significant_figures
         self.unit_magnitude = int(math.floor(math.log(lowest_trackable_value) / math.log(2)))
-        largest_value_single_unit_res = 2 * math.pow(10, significant_figures)
+        largest_value_single_unit_res = int(math.ceil(2 * math.pow(10, significant_figures)))
         subb_count_mag = int(math.ceil(math.log(largest_value_single_unit_res) / math.log(2)))
         self.sub_bucket_half_count_magnitude = subb_count_mag - 1 if subb_count_mag > 1 else 0
         self.sub_bucket_count = int(math.pow(2, self.sub_bucket_half_count_magnitude + 1))
@@ -494,6 +494,38 @@ class HdrHistogram(object):
                 [by convention] in msec since the epoch.
         '''
         self.end_time_stamp_msec = time_stamp_msec
+    def sub(self, other_hist):
+        highest_recordable_value = \
+            self.get_highest_equivalent_value(self.get_value_from_index(self.counts_len - 1))
+        if highest_recordable_value < other_hist.get_max_value():
+            raise IndexError("The other histogram includes values that do not fit %d < %d" %
+                             (highest_recordable_value, other_hist.get_max_value()))
+
+        if (self.bucket_count == other_hist.bucket_count) and \
+           (self.sub_bucket_count == other_hist.sub_bucket_count) and \
+           (self.unit_magnitude == other_hist.unit_magnitude) and \
+           (self.word_size == other_hist.word_size):
+
+            # do an in-place addition of one array to another
+            self.encoder.sub(other_hist.encoder)
+
+            self.total_count -= other_hist.get_total_count()
+            self.max_value = max(self.max_value, other_hist.get_max_value())
+            self.min_value = min(self.get_min_value(), other_hist.get_min_value())
+
+        else:
+
+            for index in range(other_hist.counts_len):
+                my_count = self.get_count_at_index(index)
+                other_count = other_hist.get_count_at_index(index)
+                if other_count > 0:
+                    self.record_value(other_hist.get_value_from_index(index), -min(other_count, my_count))
+
+        self.start_time_stamp_msec = \
+            min(self.start_time_stamp_msec, other_hist.start_time_stamp_msec)
+        self.end_time_stamp_msec = \
+            max(self.end_time_stamp_msec, other_hist.end_time_stamp_msec)
+
 
     def add(self, other_hist):
         highest_recordable_value = \
