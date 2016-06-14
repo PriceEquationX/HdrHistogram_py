@@ -224,7 +224,7 @@ class HdrPayload(object):
             encode_buf = (c_byte * (payload_header_size + varint_len))()
 
             # encode past the payload header
-            varint_len = encode(addressof(self.counts), counts_limit,
+            varint_len = encode(addressof(self.counts), counts_limit, self.counts_len,
                                 self.word_size,
                                 addressof(encode_buf) + payload_header_size,
                                 varint_len)
@@ -294,12 +294,9 @@ class HdrHistogramEncoder(object):
             or the compressed payload (as a string, if b64 wrappinb is disabled)
         '''
         # only compress the first non zero buckets
-        # if histogram is empty we do not encode any counter
-        if self.histogram.total_count:
-            relevant_length = \
-                self.histogram.get_counts_array_index(self.histogram.max_value) + 1
-        else:
-            relevant_length = 0
+        relevant_length = \
+            self.histogram.get_counts_array_index(self.histogram.max_value) + 1
+
         cpayload = self.payload.compress(relevant_length)
         if self.b64_wrap:
             self.header.length = len(cpayload)

@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include "python-codec.h"
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -181,15 +182,16 @@ static int set_array_entry64(void *src, int index, uint64_t value) {
 static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
     void *vsrc;       /* l: addressof a ctypes c_uint16, c_uint32 or c_uint64 array */
     int max_index;    /* i: encode entries [0..max_index-1] */
+    int counts_len;
     int word_size;    /* i: word size in bytes (2,4,8) for each array element */
     uint8_t *dest;    /* l: where to encode */
     int dest_len;     /* i: length of the destination buffer, must be >=(word_size+1)*max_index */
     get_array_entry get_entry;
-    int index;
-    int write_index;
+    int count_loc;
+    int bf_len;
     PyObject *res;
 
-    if (!PyArg_ParseTuple(args, "liili", &vsrc, &max_index, &word_size, &dest, &dest_len)) {
+    if (!PyArg_ParseTuple(args, "liiili", &vsrc, &max_index, &counts_len, &word_size, &dest, &dest_len)) {
         return NULL;
     }
     if (vsrc == NULL) {
@@ -221,32 +223,27 @@ static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
         PyErr_SetString(PyExc_ValueError, "Destination buffer is NULL");
         return NULL;
     }
-    write_index = 0;
-    for (index=0; index < max_index;) {
-        uint64_t value = get_entry(vsrc, index);
-        ++index;
-         
-        /* max encodable value must fit in 63 bit */
-        // if (value == 0) {
-        //     int64_t zeros = 1;
 
-        //     while (index < max_index && 0 == get_entry(vsrc, index)) {
-        //         zeros++;
-        //         index++;
-        //     }
-        //     write_index += zig_zag_encode_i64(&dest[write_index], -zeros);
-        // }
-        // else if (((int64_t) value) < 0) {
-        //     free(dest);
-        //     PyErr_SetString(PyExc_OverflowError,
-        //                     "64-bit overflow - zigzag only supports 63-bit values");
-        //     return NULL;
-        // } else {
-            write_index += zig_zag_encode_i64(&dest[write_index], value);
-        // }
+    bf_len = (counts_len + 7) >> 3;
+    count_loc = 0;
+    int bf_byte;
+    int bit;
+    int write_index = bf_len;
+    for (bf_byte = 0; bf_byte < bf_len; bf_byte++) {
+        char b = 0;
+
+        for (bit = 0; (bit < 8) & (count_loc < max_index); bit++) {
+            uint64_t count = get_entry(vsrc, count_loc++);
+            if (count != 0) {
+                write_index += zig_zag_encode_i64(&dest[write_index], count);
+                b |= 1 << bit;
+            }
+        }
+        dest[bf_byte] = b;
     }
+
     /* write_index is the exact length of the encoded string */
-    res = Py_BuildValue("i", write_index);
+    res = Py_BuildValue("i", bf_len + write_index);
     return res;
 }
 
@@ -259,10 +256,13 @@ static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
 static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
     uint8_t *src;   /* t#: read only character buffer */
     int src_len;    /*     its length */
-    int read_index; /* i: start decoding from this offset, must be < src_len */
+    int start_index; /* i: start decoding from this offset, must be < src_len */
     void *vdst;     /* l: address of a counts array */
     int max_index;  /* i: number of entries in that array, must be > 0 */
     int word_size;  /* i: word size of the array entries: 2, 4 or 8 */
+    int bf_len;
+    int count_loc;
+    int read_index;
 
     set_array_entry set_entry;
     uint64_t total_count = 0;
@@ -270,7 +270,7 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
     int64_t max_nonzero_index = 0;
 
     if (!PyArg_ParseTuple(args, "s#ilii", &src, &src_len,
-                          &read_index,
+                          &start_index,
                           &vdst, &max_index,
                           &word_size)) {
         return NULL;
@@ -279,7 +279,7 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
         PyErr_SetString(PyExc_ValueError, "NULL destination array");
         return NULL;
     }
-    if (read_index < 0) {
+    if (start_index < 0) {
         PyErr_SetString(PyExc_IndexError, "Negative starting read index");
         return NULL;
     }
@@ -298,59 +298,57 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    src_len -= read_index;
-
+    bf_len = (max_index + 7) >> 3;
+    read_index = start_index + bf_len;
+    src_len -= start_index + sizeof(bf_len);
+    count_loc = 0;
     if ((src_len > 0) && src) {
-        int64_t dst_index;
+        int bf_byte;
+        int bit;
+        for (bf_byte = 0; bf_byte < bf_len; bf_byte++) {
+            char b = src[start_index + bf_byte];
 
-        /* something to decode */
-        dst_index = 0;
-        for (;;) {
-            /* invariant: src_len > 0 and dst_index < max_index */
-            int64_t value;
-            int read_bytes;
+            for (bit = 0; bit < 8; bit++) {
+                int64_t value = 0;
 
-            read_bytes = zig_zag_decode_i64(&src[read_index], src_len, &value);
-            if (read_bytes < 0) {
-                /* decode error */
-                PyErr_SetString(PyExc_ValueError, "Zigzag varint decoding error");
-                return NULL;
-            }
-            read_index += read_bytes;
-            src_len -= read_bytes;
+                if ((b & (1 << bit)) != 0) {
+                    int read_bytes = zig_zag_decode_i64(&src[read_index], src_len, &value);
 
-            /* check that negative value fit in int32_t */
-            if (value < INT_MIN) {
-                PyErr_SetString(PyExc_OverflowError, "Decoding error: negative overflow");
-                return NULL;
-            }
-//  XTXv0 encoding supports negative counts, so doesn't do the zero-run trick - Paul
-//            if (value < 0) {
-//                /* skip zeros counts */
-//                dst_index -= value;
-//            } else {
-                if (value) {
-                    if (set_entry(vdst, (int) dst_index, value)) {
-                        PyErr_SetString(PyExc_OverflowError, "Value overflows destination counter size");
+                    if (read_bytes < 0) {
+                        /* decode error */
+                        PyErr_SetString(PyExc_ValueError, "Zigzag varint decoding error");
                         return NULL;
                     }
-                    total_count += value;
-                    max_nonzero_index = dst_index;
-                    if (min_nonzero_index < 0) {
-                        min_nonzero_index = dst_index;
-                    }
+                    read_index += read_bytes;
+                    src_len -= read_bytes;
                 }
-                ++dst_index;
-//            }
-            /* check for end of decode stream */
-            if (src_len == 0) {
-                break;
+
+                if (set_entry(vdst, (int) count_loc, value)) {
+                    PyErr_SetString(PyExc_OverflowError, "Value overflows destination counter size");
+                    return NULL;
+                }
+                total_count += value;
+                max_nonzero_index = count_loc;
+                if (min_nonzero_index < 0) {
+                    min_nonzero_index = count_loc;
+                }
+
+                if (count_loc >= max_index) {
+                    /* overrun */
+                    PyErr_Format(PyExc_IndexError, "Destination array overrun index=%d" PRId64 " max index=%d",
+                                                   count_loc, max_index);
+                    return NULL;
+                }
+
+                if (src_len <= 0) {
+                    break;
+                }
+
+                count_loc++;
             }
-            if (dst_index >= max_index) {
-                /* overrun */
-                PyErr_Format(PyExc_IndexError, "Destination array overrun index=%" PRId64 " max index=%d",
-                                               dst_index, max_index);
-                return NULL;
+
+            if (src_len <= 0) {
+                break;
             }
         }
     }

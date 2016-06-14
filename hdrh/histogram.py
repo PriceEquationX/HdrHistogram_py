@@ -94,15 +94,13 @@ class HdrHistogram(object):
             ValueError if the word_size value is unsupported
                 if significant_figures is invalid
         '''
-        if significant_figures < 1 or significant_figures > 5:
+        if significant_figures < 0 or significant_figures > 17:
             raise ValueError('Invalid significant_figures')
         self.lowest_trackable_value = lowest_trackable_value
         self.highest_trackable_value = highest_trackable_value
         self.significant_figures = significant_figures
         self.unit_magnitude = int(math.floor(math.log(lowest_trackable_value) / math.log(2)))
-        largest_value_single_unit_res = int(math.ceil(2 * math.pow(10, significant_figures)))
-        subb_count_mag = int(math.ceil(math.log(largest_value_single_unit_res) / math.log(2)))
-        self.sub_bucket_half_count_magnitude = subb_count_mag - 1 if subb_count_mag > 1 else 0
+        self.sub_bucket_half_count_magnitude = significant_figures
         self.sub_bucket_count = int(math.pow(2, self.sub_bucket_half_count_magnitude + 1))
         self.sub_bucket_half_count = self.sub_bucket_count // 2
         self.sub_bucket_mask = (self.sub_bucket_count - 1) << self.unit_magnitude
@@ -612,8 +610,9 @@ class HdrHistogram(object):
         out_file.write('%12s %14s %10s %14s\n\n' %
                        ('Value', 'Percentile', 'TotalCount', '1/(1-Percentile)'))
 
-        percentile_format = '%12.{}f %2.12f %10d %14.2f\n'.format(self.significant_figures)
-        last_line_percentile_format = '%12.{}f %2.12f %10d\n'.format(self.significant_figures)
+        decimal_sig_figs = Math.ceil(self.significant_figures * 3.321928)  # log(10)/log(2)
+        percentile_format = '%12.{}f %2.12f %10d %14.2f\n'.format(decimal_sig_figs)
+        last_line_percentile_format = '%12.{}f %2.12f %10d\n'.format(decimal_sig_figs)
         for iter_value in self.get_percentile_iterator(ticks_per_half_distance):
             value = iter_value.value_iterated_to / output_value_unit_scaling_ratio
             percentile = iter_value.percentile_level_iterated_to / 100
@@ -627,11 +626,11 @@ class HdrHistogram(object):
         mean = self.get_mean_value() / output_value_unit_scaling_ratio
         stddev = self.get_stddev()
         out_file.write('#[Mean    = %12.{0}f, StdDeviation   = %12.{0}f]\n'.format(
-            self.significant_figures) % (mean, stddev))
+            decimal_sig_figs) % (mean, stddev))
 
         max = self.get_max_value() / output_value_unit_scaling_ratio
         total = self.get_total_count()
         out_file.write('#[Max     = %12.{0}f, TotalCount     = %12.{0}f]\n'.format(
-            self.significant_figures) % (max, total))
+            decimal_sig_figs) % (max, total))
         out_file.write('#[Buckets = %12d, SubBuckets     = %12d]\n' % (
             self.bucket_count, self.sub_bucket_count))
