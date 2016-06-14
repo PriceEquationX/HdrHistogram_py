@@ -1,7 +1,5 @@
 *.py[cod]
 
-venv
-
 # C extensions
 *.so
 
@@ -31,6 +29,7 @@ pip-log.txt
 nosetests.xml
 .testrepository
 .venv
+venv
 hdr.log
 
 # Translations
