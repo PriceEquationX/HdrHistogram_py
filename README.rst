@@ -1,11 +1,11 @@
+
+This is a fork of https://github.com/HdrHistogram/HdrHistogram_py allowing negative counts
+
 ========
 Overview
 ========
 
 High Dynamic Range Histogram python implementation
-
-.. image:: https://badges.gitter.im/Join Chat.svg
-   :target: https://gitter.im/HdrHistogram/HdrHistogram
 
 This repository contains a port to python of most of the original Java HDR Histogram
 library:
