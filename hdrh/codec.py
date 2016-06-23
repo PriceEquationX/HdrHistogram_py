@@ -44,11 +44,11 @@ from pyhdrh import decode
 from pyhdrh import encode
 import zlib
 
-XTXV0_ENCODING_COOKIE_BASE = 0x9c849303
-XTXV0_COMPRESSION_COOKIE_BASE = 0x9c849304
+XTXV1_ENCODING_COOKIE_BASE = 0x1c84930a
+XTXV1_COMPRESSION_COOKIE_BASE = 0x1c84930b
 
 # LEB128 + ZigZag require up to 9 bytes per word
-XTXV0_MAX_WORD_SIZE_IN_BYTES = 9
+XTXV1_MAX_WORD_SIZE_IN_BYTES = 9
 
 # allow at most 4 MB counter array size
 # that represents 500,000 8 byte counters
@@ -58,18 +58,18 @@ def get_cookie_base(cookie):
     return cookie & ~0xf0
 
 def get_word_size_in_bytes_from_cookie(cookie):
-    if (get_cookie_base(cookie) == XTXV0_ENCODING_COOKIE_BASE) or \
-       (get_cookie_base(cookie) == XTXV0_COMPRESSION_COOKIE_BASE):
-        return XTXV0_MAX_WORD_SIZE_IN_BYTES
+    if (get_cookie_base(cookie) == XTXV1_ENCODING_COOKIE_BASE) or \
+       (get_cookie_base(cookie) == XTXV1_COMPRESSION_COOKIE_BASE):
+        return XTXV1_MAX_WORD_SIZE_IN_BYTES
     return (cookie & 0xf0) >> 4
 
 def get_encoding_cookie():
     # LSBit of wordsize byte indicates TLZE Encoding
-    return XTXV0_ENCODING_COOKIE_BASE | 0x10
+    return XTXV1_ENCODING_COOKIE_BASE | 0x10
 
 def get_compression_cookie():
     # LSBit of wordsize byte indicates TLZE Encoding
-    return XTXV0_COMPRESSION_COOKIE_BASE | 0x10
+    return XTXV1_COMPRESSION_COOKIE_BASE | 0x10
 
 class HdrCookieException(Exception):
     pass
@@ -202,10 +202,10 @@ class HdrPayload(object):
         self.payload = PayloadHeader.from_buffer_copy(self._data)
 
         cookie = self.payload.cookie
-        if get_cookie_base(cookie) != XTXV0_ENCODING_COOKIE_BASE:
+        if get_cookie_base(cookie) != XTXV1_ENCODING_COOKIE_BASE:
             raise HdrCookieException('Invalid cookie: %x' % cookie)
         word_size = get_word_size_in_bytes_from_cookie(cookie)
-        if word_size != XTXV0_MAX_WORD_SIZE_IN_BYTES:
+        if word_size != XTXV1_MAX_WORD_SIZE_IN_BYTES:
             raise HdrCookieException('Invalid V2 cookie: %x' % cookie)
 
     def compress(self, counts_limit):
@@ -336,7 +336,7 @@ class HdrHistogramEncoder(object):
                 raise HdrLengthException('Base64 decoded message too short')
 
             header = ExternalHeader.from_buffer_copy(b64decode)
-            if get_cookie_base(header.cookie) != XTXV0_COMPRESSION_COOKIE_BASE:
+            if get_cookie_base(header.cookie) != XTXV1_COMPRESSION_COOKIE_BASE:
                 raise HdrCookieException()
             if header.length != b64dec_len - ext_header_size:
                 raise HdrLengthException('Decoded length=%d buffer length=%d' %
