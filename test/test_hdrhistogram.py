@@ -75,7 +75,7 @@ def test_empty_histogram():
 
 @pytest.mark.basic
 def test_large_numbers():
-    histogram = HdrHistogram(20000000, 100000000, 5)
+    histogram = HdrHistogram(20000000, 100000000, 17)
     histogram.record_value(100000000)
     histogram.record_value(20000000)
     histogram.record_value(30000000)
@@ -315,7 +315,7 @@ def test_invalid_significant_figures():
     except ValueError:
         pass
     try:
-        HdrHistogram(LOWEST, HIGHEST, 6)
+        HdrHistogram(LOWEST, HIGHEST, 18)
         assert False
     except ValueError:
         pass
@@ -323,7 +323,7 @@ def test_invalid_significant_figures():
 
 @pytest.mark.basic
 def test_out_of_range_values():
-    histogram = HdrHistogram(1, 1000, 4)
+    histogram = HdrHistogram(1, 1000, 14)
     assert(histogram.record_value(32767))
     assert(histogram.record_value(32768) is False)
 
@@ -441,17 +441,17 @@ def check_hist_encode(word_size,
 ENCODE_ARG_LIST = (
     # word size digits  expected_compressed_length, fill_start%, fill_count%
     # best case when all counters are zero
-    (8, 3, 48, 0, 0),        # V1=52 385 = size when compressing entire counts array
-    (8, 2, 48, 0, 0),        # 126
+    (8, 11, 1680, 0, 0),        # V1=52 385 = size when compressing entire counts array
+    (8, 8, 48, 0, 0),        # 126
     # typical case when all counters are aggregated in a small contiguous area
-    (8, 3, 15560, 30, 20),   # V1=16452
-    (8, 2, 1688, 30, 20),    # V1=2096
+    (8, 11, 15560, 30, 20),   # V1=16452
+    (8, 8, 1688, 30, 20),    # V1=2096
     # worst case when all counters are different
-    (8, 3, 76892, 0, 100),   # V1=80680
-    (8, 2, 9340, 0, 100),    # V1=10744
+    (8, 11, 76892, 0, 100),   # V1=80680
+    (8, 8, 9340, 0, 100),    # V1=10744
     # worst case 32-bit and 16-bit counters
-    (2, 3, 76892, 0, 100),   # V1=68936
-    (2, 2, 9340, 0, 100),    # V1=9144
+    (2, 11, 76892, 0, 100),   # V1=68936
+    (2, 8, 9340, 0, 100),    # V1=9144
 )
 
 
@@ -673,6 +673,7 @@ def test_add_array_errors():
     # invalid word size
     with pytest.raises(ValueError):
         add_array(addressof(src_array), addressof(src_array), 0, 0)
+
 
 def check_add_array(int_type):
     src_array = (int_type * ARRAY_SIZE)()

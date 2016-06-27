@@ -23,6 +23,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from __future__ import print_function
+
+import math
+
 from builtins import str
 from builtins import range
 from builtins import object
@@ -230,6 +233,8 @@ class HdrPayload(object):
             # worst case varint encoded length is when each counter is at the maximum value
             # in this case 1 more byte per counter is needed due to the more bits
             varint_len = counts_limit * (self.word_size + 1)
+            # Add on space for the non zero value bits
+            varint_len += int(math.ceil(self.counts_len/8))
             # allocate enough space to fit the header and the varint string
             encode_buf = (c_byte * (payload_header_size + varint_len))()
 
