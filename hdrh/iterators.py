@@ -1,4 +1,4 @@
-'''
+"""
 A pure python version of the hdr_histogram code
 
 Ported from
@@ -20,18 +20,20 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 from __future__ import division
 from builtins import object
 from abc import abstractmethod
 import math
 
+
 class HdrConcurrentModificationException(Exception):
     pass
 
+
 class HdrIterationValue(object):
-    '''Class of the values returned by each iterator
-    '''
+    """Class of the values returned by each iterator
+    """
     def __init__(self, hdr_iterator):
         self.hdr_iterator = hdr_iterator
         self.value_iterated_to = 0
@@ -57,13 +59,14 @@ class HdrIterationValue(object):
         self.percentile_level_iterated_to = hdr_it.get_percentile_iterated_to()
         self.int_to_double_conversion_ratio = hdr_it.int_to_double_conversion_ratio
 
+
 class AbstractHdrIterator(object):
-    '''Provide a means of iterating through all histogram values using the finest
+    """Provide a means of iterating through all histogram values using the finest
     granularity steps supported by the underlying representation.
     The iteration steps through all possible unit value levels, regardless of
     whether or not there were recorded values for that value level,
     and terminates when all recorded histogram values are exhausted.
-    '''
+    """
     def __init__(self, histogram):
         self.histogram = histogram
         self.current_index = 0
@@ -166,6 +169,7 @@ class AbstractHdrIterator(object):
     def get_percentile_iterated_from(self):
         return (100.0 * self.total_count_to_prev_index) / self.total_count
 
+
 class AllValuesIterator(AbstractHdrIterator):
     def __init__(self, histogram):
         AbstractHdrIterator.__init__(self, histogram)
@@ -186,19 +190,21 @@ class AllValuesIterator(AbstractHdrIterator):
             raise HdrConcurrentModificationException()
         return self.current_index < self.histogram.counts_len - 1
 
+
 class RecordedIterator(AllValuesIterator):
-    '''Provide a means of iterating through all recorded histogram values
+    """Provide a means of iterating through all recorded histogram values
     using the finest granularity steps supported by the underlying representation.
     The iteration steps through all non-zero recorded value counts,
     and terminates when all recorded histogram values are exhausted.
-    '''
+    """
     def reached_iteration_level(self):
         current_count = self.histogram.get_count_at_index(self.current_index)
         return current_count and self.visited_index != self.current_index
 
+
 class AbstractLiLoIteratortype(AbstractHdrIterator):
-    '''Linear/Log iterator common parent class
-    '''
+    """Linear/Log iterator common parent class
+    """
     def __init__(self, histogram, next_value_report_lev):
         AbstractHdrIterator.__init__(self, histogram)
         self.next_value_report_lev = next_value_report_lev
@@ -211,6 +217,9 @@ class AbstractLiLoIteratortype(AbstractHdrIterator):
             self.next_value_report_lev = next_value_report_lev
         self.next_value_report_lev_lowest_eq = \
             self.histogram.get_lowest_equivalent_value(next_value_report_lev)
+
+    def increment_iteration_level(self):
+        pass
 
     def has_next(self):
         if AbstractHdrIterator.has_next(self):
@@ -225,12 +234,13 @@ class AbstractLiLoIteratortype(AbstractHdrIterator):
     def get_value_iterated_to(self):
         return self.next_value_report_lev
 
+
 class LinearIterator(AbstractLiLoIteratortype):
-    '''Provide a means of iterating through histogram values using linear steps.
+    """Provide a means of iterating through histogram values using linear steps.
 
     The iteration is performed in steps of value_units_per_bucket in size,
     terminating when all recorded histogram values are exhausted.
-    '''
+    """
     def __init__(self, histogram, value_units_per_bucket):
         AbstractLiLoIteratortype.__init__(self, histogram, value_units_per_bucket)
         self.value_units_per_bucket = value_units_per_bucket
@@ -245,14 +255,15 @@ class LinearIterator(AbstractLiLoIteratortype):
         self.next_value_report_lev_lowest_eq = \
             self.histogram.get_lowest_equivalent_value(self.next_value_report_lev)
 
+
 class LogIterator(AbstractLiLoIteratortype):
-    '''Provide a means of iterating through histogram values at logarithmically
+    """Provide a means of iterating through histogram values at logarithmically
     increasing levels.
 
     The iteration is performed in steps that start at value_units_first_bucket
     and increase exponentially according to log_base, terminating when all
     recorded histogram values are exhausted.
-    '''
+    """
     def __init__(self, histogram, value_units_first_bucket, log_base):
         AbstractLiLoIteratortype.__init__(self, histogram, value_units_first_bucket)
         self.log_base = log_base
@@ -267,14 +278,15 @@ class LogIterator(AbstractLiLoIteratortype):
         self.next_value_report_lev_lowest_eq = \
             self.histogram.get_lowest_equivalent_value(self.next_value_report_lev)
 
+
 class PercentileIterator(AbstractHdrIterator):
-    '''Provide a means of iterating through histogram values according to
+    """Provide a means of iterating through histogram values according to
     percentile levels
 
     The iteration is performed in steps that start at 0% and reduce their
     distance to 100% according to the ticks_per_half_distance parameter,
     ultimately reaching 100% when all recorded histogram values are exhausted.
-    '''
+    """
     def __init__(self, histogram, percentile_ticks_per_half_distance):
         AbstractHdrIterator.__init__(self, histogram)
         self.percentile_ticks_per_half_distance = percentile_ticks_per_half_distance
@@ -303,7 +315,7 @@ class PercentileIterator(AbstractHdrIterator):
 
     def increment_iteration_level(self):
         self.percentile_to_iterate_from = self.percentile_to_iterate_to
-        percentile_gap = 100.0 - (self.percentile_to_iterate_to)
+        percentile_gap = 100.0 - self.percentile_to_iterate_to
         if percentile_gap:
             half_distance = math.pow(2, (math.log(100 / percentile_gap) / math.log(2)) + 1)
             percentile_reporting_ticks = self.percentile_ticks_per_half_distance * half_distance

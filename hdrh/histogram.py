@@ -1,4 +1,4 @@
-'''
+"""
 A pure python version of the hdr_histogram code
 
 Ported from
@@ -18,7 +18,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 from __future__ import division, print_function
 from builtins import range
 from builtins import object
@@ -31,6 +31,7 @@ from hdrh.iterators import LinearIterator
 from hdrh.iterators import LogIterator
 from hdrh.codec import HdrHistogramEncoder
 
+
 def get_bucket_count(value, subb_count, unit_mag):
     smallest_untrackable_value = subb_count << unit_mag
     buckets_needed = 1
@@ -41,8 +42,9 @@ def get_bucket_count(value, subb_count, unit_mag):
         buckets_needed += 1
     return buckets_needed
 
+
 class HdrHistogram(object):
-    '''This class supports the recording and analyzing of sampled data value
+    """This class supports the recording and analyzing of sampled data value
     counts across a configurable integer value range with configurable value
     precision within the range. Value precision is expressed as the number of
     significant digits in the value recording, and provides control over value
@@ -60,7 +62,7 @@ class HdrHistogram(object):
     up to one second, and a resolution of 1 second (or better) up to 1,000
     seconds. At it's maximum tracked value (1 hour), it would still maintain a
     resolution of 3.6 seconds (or better).
-    '''
+    """
 
     def __init__(self,
                  lowest_trackable_value,
@@ -69,7 +71,7 @@ class HdrHistogram(object):
                  word_size=8,
                  b64_wrap=True,
                  hdr_payload=None):
-        '''Create a new histogram with given arguments
+        """Create a new histogram with given arguments
 
         Params:
             lowest_trackable_value The lowest value that can be discerned
@@ -93,7 +95,7 @@ class HdrHistogram(object):
         Exceptions:
             ValueError if the word_size value is unsupported
                 if significant_figures is invalid
-        '''
+        """
         if significant_figures < 0 or significant_figures > 17:
             raise ValueError('Invalid significant_figures')
         self.lowest_trackable_value = lowest_trackable_value
@@ -135,7 +137,8 @@ class HdrHistogram(object):
         self.start_time_stamp_msec = 0
         self.end_time_stamp_msec = 0
 
-    def _clz(self, value):
+    @staticmethod
+    def _clz(value):
         """calculate the leading zeros, equivalent to C __builtin_clzll()
         value in hex:
         value = 1 clz = 63
@@ -171,12 +174,12 @@ class HdrHistogram(object):
         return self._counts_index(bucket_index, sub_bucket_index)
 
     def record_value(self, value, count=1):
-        '''Record a new value into the histogram
+        """Record a new value into the histogram
 
         Args:
             value: the value to record (must be in the valid range)
             count: incremental count (defaults to 1)
-        '''
+        """
         if value < 0:
             return False
         counts_index = self._counts_index_for(value)
@@ -189,14 +192,14 @@ class HdrHistogram(object):
         return True
 
     def record_corrected_value(self, value, expected_interval, count=1):
-        '''Record a new value into the histogram and correct for
+        """Record a new value into the histogram and correct for
         coordinated omission if needed
 
         Args:
             value: the value to record (must be in the valid range)
             expected_interval: the expected interval between 2 value samples
             count: incremental count (defaults to 1)
-        '''
+        """
         while True:
             if not self.record_value(value, count):
                 return False
@@ -259,17 +262,17 @@ class HdrHistogram(object):
 
     def get_target_count_at_percentile(self, percentile):
         requested_percentile = min(percentile, 100.0)
-        count_at_percentile = int(((requested_percentile * self.total_count / 100)) + 0.5)
+        count_at_percentile = int((requested_percentile * self.total_count / 100) + 0.5)
         return max(count_at_percentile, 1)
 
     def get_value_at_percentile(self, percentile):
-        '''Get the value for a given percentile
+        """Get the value for a given percentile
 
         Args:
             percentile: a float in [0.0..100.0]
         Returns:
             the value for the given percentile
-        '''
+        """
         count_at_percentile = self.get_target_count_at_percentile(percentile)
         total = 0
         for index in range(self.counts_len):
@@ -282,14 +285,14 @@ class HdrHistogram(object):
         return 0
 
     def get_percentile_to_value_dict(self, percentile_list):
-        '''A faster alternative to query values for a list of percentiles.
+        """A faster alternative to query values for a list of percentiles.
 
         Args:
             percentile_list: a list of percentiles in any order, dups will be ignored
             each element in the list must be a float value in [0.0 .. 100.0]
         Returns:
             a dict of percentile values indexed by the percentile
-        '''
+        """
         result = {}
         total = 0
         percentile_list_index = 0
@@ -330,12 +333,12 @@ class HdrHistogram(object):
         return self.counts[counts_index]
 
     def values_are_equivalent(self, val1, val2):
-        '''Check whether 2 values are equivalent (meaning they
+        """Check whether 2 values are equivalent (meaning they
         are in the same bucket/range)
 
         Returns:
             true if the 2 values are equivalent
-        '''
+        """
         return self.get_lowest_equivalent_value(val1) == self.get_lowest_equivalent_value(val2)
 
     def get_max_value(self):
@@ -381,8 +384,8 @@ class HdrHistogram(object):
         return math.sqrt(geometric_dev_total / self.total_count)
 
     def reset(self):
-        '''Reset the histogram to a pristine state
-        '''
+        """Reset the histogram to a pristine state
+        """
         for index in range(self.counts_len):
             self.counts[index] = 0
         self.total_count = 0
@@ -392,8 +395,8 @@ class HdrHistogram(object):
         self.end_time_stamp_msec = 0
 
     def __iter__(self):
-        '''Returns the recorded iterator if iter(self) is called
-        '''
+        """Returns the recorded iterator if iter(self) is called
+        """
         return RecordedIterator(self)
 
     def get_all_values_iterator(self):
@@ -412,23 +415,23 @@ class HdrHistogram(object):
         return LogIterator(self, value_units_first_bucket, log_base)
 
     def encode(self):
-        '''Encode this histogram
+        """Encode this histogram
         Return:
             a string containing the base64 encoded compressed histogram (V1 format)
-        '''
+        """
         return self.encoder.encode()
 
     def adjust_internal_tacking_values(self,
                                        min_non_zero_index,
                                        max_index,
                                        total_added):
-        '''Called during decoding and add to adjust the new min/max value and
+        """Called during decoding and add to adjust the new min/max value and
         total count
 
         Args:
             min_non_zero_index min nonzero index of all added counts (-1 if none)
             max_index max index of all added counts (-1 if none)
-        '''
+        """
         if max_index >= 0:
             max_value = self.get_highest_equivalent_value(self.get_value_from_index(max_index))
             self.max_value = max(self.max_value, max_value)
@@ -441,13 +444,13 @@ class HdrHistogram(object):
                                     min_non_zero_index,
                                     max_index,
                                     total_added):
-        '''Called during decoding and add to adjust the new min/max value and
+        """Called during decoding and add to adjust the new min/max value and
         total count
 
         Args:
             min_non_zero_index min nonzero index of all added counts (-1 if none)
             max_index max index of all added counts (-1 if none)
-        '''
+        """
         if max_index >= 0:
             self.max_value = self.get_highest_equivalent_value(self.get_value_from_index(max_index))
         if min_non_zero_index >= 0:
@@ -455,8 +458,8 @@ class HdrHistogram(object):
         self.total_count = total_added
 
     def get_counts_array_index(self, value):
-        '''Return the index in the counts array for a given value
-        '''
+        """Return the index in the counts array for a given value
+        """
         if value < 0:
             raise ValueError("Histogram recorded value cannot be negative.")
 
@@ -475,23 +478,24 @@ class HdrHistogram(object):
         return self.start_time_stamp_msec
 
     def set_start_time_stamp(self, time_stamp_msec):
-        '''Set the start time stamp value associated with this histogram to a given value.
+        """Set the start time stamp value associated with this histogram to a given value.
         Params:
             time_stamp_msec the value to set the time stamp to,
                 [by convention] in msec since the epoch.
-        '''
+        """
         self.start_time_stamp_msec = time_stamp_msec
 
     def get_end_time_stamp(self):
         return self.end_time_stamp_msec
 
     def set_end_time_stamp(self, time_stamp_msec):
-        '''Set the end time stamp value associated with this histogram to a given value.
+        """Set the end time stamp value associated with this histogram to a given value.
         Params:
             time_stamp_msec the value to set the time stamp to,
                 [by convention] in msec since the epoch.
-        '''
+        """
         self.end_time_stamp_msec = time_stamp_msec
+
     def sub(self, other_hist):
         highest_recordable_value = \
             self.get_highest_equivalent_value(self.get_value_from_index(self.counts_len - 1))
@@ -517,13 +521,13 @@ class HdrHistogram(object):
                 my_count = self.get_count_at_index(index)
                 other_count = other_hist.get_count_at_index(index)
                 if other_count > 0:
-                    self.record_value(other_hist.get_value_from_index(index), -min(other_count, my_count))
+                    self.record_value(other_hist.get_value_from_index(index),
+                                      -min(other_count, my_count))
 
         self.start_time_stamp_msec = \
             min(self.start_time_stamp_msec, other_hist.start_time_stamp_msec)
         self.end_time_stamp_msec = \
             max(self.end_time_stamp_msec, other_hist.end_time_stamp_msec)
-
 
     def add(self, other_hist):
         highest_recordable_value = \
@@ -557,7 +561,7 @@ class HdrHistogram(object):
             max(self.end_time_stamp_msec, other_hist.end_time_stamp_msec)
 
     def decode_and_add(self, encoded_histogram):
-        '''Decode an encoded histogram and add it to this histogram
+        """Decode an encoded histogram and add it to this histogram
         Args:
             encoded_histogram (string) an encoded histogram
                 following the V1 format, such as one returned by the encode() method
@@ -571,13 +575,13 @@ class HdrHistogram(object):
                 or is not aligned or is too large for the passed payload class
             zlib.error:
                 in case of zlib decompression error
-        '''
+        """
         other_hist = HdrHistogram.decode(encoded_histogram, self.b64_wrap)
         self.add(other_hist)
 
     @staticmethod
     def decode(encoded_histogram, b64_wrap=True):
-        '''Decode an encoded histogram and return a new histogram instance that
+        """Decode an encoded histogram and return a new histogram instance that
         has been initialized with the decoded content
         Return:
             a new histogram instance representing the decoded content
@@ -591,7 +595,7 @@ class HdrHistogram(object):
                 or is not aligned or is too large for the passed payload class
             zlib.error:
                 in case of zlib decompression error
-        '''
+        """
         hdr_payload = HdrHistogramEncoder.decode(encoded_histogram, b64_wrap)
         payload = hdr_payload.payload
         histogram = HdrHistogram(payload.lowest_trackable_value,
@@ -610,7 +614,7 @@ class HdrHistogram(object):
         out_file.write('%12s %14s %10s %14s\n\n' %
                        ('Value', 'Percentile', 'TotalCount', '1/(1-Percentile)'))
 
-        decimal_sig_figs = Math.ceil(self.significant_figures * 3.321928)  # log(10)/log(2)
+        decimal_sig_figs = math.ceil(self.significant_figures * 3.321928)  # log(10)/log(2)
         percentile_format = '%12.{}f %2.12f %10d %14.2f\n'.format(decimal_sig_figs)
         last_line_percentile_format = '%12.{}f %2.12f %10d\n'.format(decimal_sig_figs)
         for iter_value in self.get_percentile_iterator(ticks_per_half_distance):
@@ -628,9 +632,9 @@ class HdrHistogram(object):
         out_file.write('#[Mean    = %12.{0}f, StdDeviation   = %12.{0}f]\n'.format(
             decimal_sig_figs) % (mean, stddev))
 
-        max = self.get_max_value() / output_value_unit_scaling_ratio
+        maximum = self.get_max_value() / output_value_unit_scaling_ratio
         total = self.get_total_count()
         out_file.write('#[Max     = %12.{0}f, TotalCount     = %12.{0}f]\n'.format(
-            decimal_sig_figs) % (max, total))
+            decimal_sig_figs) % (maximum, total))
         out_file.write('#[Buckets = %12d, SubBuckets     = %12d]\n' % (
             self.bucket_count, self.sub_bucket_count))

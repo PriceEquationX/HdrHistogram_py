@@ -1,4 +1,4 @@
-'''
+"""
 Test code for the python version of HdrHistogram.
 
 Ported from
@@ -18,7 +18,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 from __future__ import division
 from __future__ import print_function
 from builtins import range
@@ -49,9 +49,10 @@ from pyhdrh import decode
 # histogram __init__ values
 LOWEST = 1
 HIGHEST = 3600 * 1000 * 1000
-SIGNIFICANT = 3
+SIGNIFICANT = 10
 TEST_VALUE_LEVEL = 4
 INTERVAL = 10000
+
 
 @pytest.mark.basic
 def test_basic():
@@ -62,6 +63,7 @@ def test_basic():
     assert(histogram.unit_magnitude == 0)
     assert(histogram.sub_bucket_half_count_magnitude == 10)
 
+
 @pytest.mark.basic
 def test_empty_histogram():
     histogram = HdrHistogram(LOWEST, HIGHEST, SIGNIFICANT)
@@ -69,6 +71,7 @@ def test_empty_histogram():
     assert(histogram.get_max_value() == 0)
     assert(histogram.get_mean_value() == 0)
     assert(histogram.get_stddev() == 0)
+
 
 @pytest.mark.basic
 def test_large_numbers():
@@ -81,12 +84,14 @@ def test_large_numbers():
     assert(histogram.values_are_equivalent(100000000, histogram.get_value_at_percentile(83.34)))
     assert(histogram.values_are_equivalent(100000000, histogram.get_value_at_percentile(99.0)))
 
+
 @pytest.mark.basic
 def test_record_value():
     histogram = HdrHistogram(LOWEST, HIGHEST, SIGNIFICANT)
     histogram.record_value(TEST_VALUE_LEVEL)
     assert(histogram.get_count_at_value(TEST_VALUE_LEVEL) == 1)
     assert(histogram.get_total_count() == 1)
+
 
 @pytest.mark.basic
 def test_highest_equivalent_value():
@@ -98,6 +103,7 @@ def test_highest_equivalent_value():
     assert 10007 * 1024 + 1023 == histogram.get_highest_equivalent_value(10007 * 1024)
     assert 10015 * 1024 + 1023 == histogram.get_highest_equivalent_value(10008 * 1024)
 
+
 @pytest.mark.basic
 def test_scaled_highest_equiv_value():
     histogram = HdrHistogram(LOWEST, HIGHEST, SIGNIFICANT)
@@ -108,12 +114,14 @@ def test_scaled_highest_equiv_value():
     assert 10007 == histogram.get_highest_equivalent_value(10007)
     assert 10015 == histogram.get_highest_equivalent_value(10008)
 
+
 def load_histogram():
     histogram = HdrHistogram(LOWEST, HIGHEST, SIGNIFICANT)
     # record this value with a count of 10,000
     histogram.record_value(1000, 10000)
     histogram.record_value(100000000)
     return histogram
+
 
 def load_corrected_histogram():
     histogram = HdrHistogram(LOWEST, HIGHEST, SIGNIFICANT)
@@ -122,9 +130,11 @@ def load_corrected_histogram():
     histogram.record_corrected_value(100000000, INTERVAL)
     return histogram
 
+
 def check_percentile(hist, percentile, value, variation):
     value_at = hist.get_value_at_percentile(percentile)
     assert(abs(value_at - value) < value * variation)
+
 
 def check_hist_percentiles(hist, total_count, perc_value_list):
     for pair in perc_value_list:
@@ -132,6 +142,7 @@ def check_hist_percentiles(hist, total_count, perc_value_list):
     assert(hist.get_total_count() == total_count)
     assert(hist.values_are_equivalent(hist.get_min_value(), 1000.0))
     assert(hist.values_are_equivalent(hist.get_max_value(), 100000000.0))
+
 
 def check_percentiles(histogram, corrected_histogram):
     check_hist_percentiles(histogram,
@@ -151,9 +162,11 @@ def check_percentiles(histogram, corrected_histogram):
                             (99.999, 100000000.0),
                             (100.0, 100000000.0)))
 
+
 @pytest.mark.basic
 def test_percentiles():
     check_percentiles(load_histogram(), load_corrected_histogram())
+
 
 @pytest.mark.iterators
 def test_recorded_iterator():
@@ -182,6 +195,7 @@ def test_recorded_iterator():
     assert(total_added_count == 20000)
     assert(total_added_count == hist.get_total_count())
 
+
 def check_iterator_values(itr, last_index):
     index = 0
     for item in itr:
@@ -194,6 +208,7 @@ def check_iterator_values(itr, last_index):
             assert(count_added_in_this_bucket == 0)
         index += 1
     assert(index - 1 == last_index)
+
 
 def check_corrected_iterator_values(itr, last_index):
     index = 0
@@ -211,6 +226,7 @@ def check_corrected_iterator_values(itr, last_index):
     assert(index - 1 == last_index)
     assert(total_added_count == 20000)
 
+
 @pytest.mark.iterators
 def test_linear_iterator():
     hist = load_histogram()
@@ -219,6 +235,7 @@ def test_linear_iterator():
     hist = load_corrected_histogram()
     itr = hist.get_linear_iterator(10000)
     check_corrected_iterator_values(itr, 9999)
+
 
 @pytest.mark.iterators
 def test_log_iterator():
@@ -229,6 +246,7 @@ def test_log_iterator():
     itr = hist.get_log_iterator(10000, 2.0)
     check_corrected_iterator_values(itr, 14)
 
+
 @pytest.mark.iterators
 def test_percentile_iterator():
     hist = load_histogram()
@@ -236,6 +254,7 @@ def test_percentile_iterator():
     for item in hist.get_percentile_iterator(5):
         expected = hist.get_highest_equivalent_value(hist.get_value_at_percentile(item.percentile))
         assert(item.value_iterated_to == expected)
+
 
 @pytest.mark.iterators
 def test_reset_iterator():
@@ -277,6 +296,7 @@ def test_reset_iterator():
     hist.get_log_iterator(10000, 2.0).reset()
     hist.get_percentile_iterator(5).reset()
 
+
 @pytest.mark.basic
 def test_reset():
     histogram = load_histogram()
@@ -286,18 +306,20 @@ def test_reset():
     assert(histogram.get_start_time_stamp() == sys.maxsize)
     assert(histogram.get_end_time_stamp() == 0)
 
+
 @pytest.mark.basic
 def test_invalid_significant_figures():
     try:
         HdrHistogram(LOWEST, HIGHEST, -1)
-        assert(False)
+        assert False
     except ValueError:
         pass
     try:
         HdrHistogram(LOWEST, HIGHEST, 6)
-        assert(False)
+        assert False
     except ValueError:
         pass
+
 
 @pytest.mark.basic
 def test_out_of_range_values():
@@ -313,6 +335,7 @@ VALUES_LIST = (
     3000
 )
 
+
 @pytest.mark.basic
 def test_mean_stddev():
     # fill up a histogram with the values in the list
@@ -325,6 +348,7 @@ def test_mean_stddev():
 HDR_PAYLOAD_COUNTS = 1000
 HDR_PAYLOAD_PARTIAL_COUNTS = HDR_PAYLOAD_COUNTS // 2
 
+
 def fill_counts(payload, last_index, start=0):
     # note that this function should only be used for
     # raw payload level operations, shoud not be used for payloads that are
@@ -333,10 +357,12 @@ def fill_counts(payload, last_index, start=0):
     for index in range(start, last_index):
         counts[index] = index
 
+
 def check_counts(payload, last_index, multiplier=1, start=0):
     counts = payload.get_counts()
     for index in range(start, last_index):
         assert(counts[index] == multiplier * index)
+
 
 def check_hdr_payload(counter_size):
     # Create an HdrPayload class with given counters count
@@ -353,11 +379,13 @@ def check_hdr_payload(counter_size):
     # now verify that the counters are identical to the original
     check_counts(dpayload, HDR_PAYLOAD_COUNTS)
 
+
 @pytest.mark.codec
 def test_hdr_payload():
     # Check the payload work in all 3 supported counter sizes
     for counter_size in [2, 4, 8]:
         check_hdr_payload(counter_size)
+
 
 @pytest.mark.codec
 def test_hdr_payload_exceptions():
@@ -367,9 +395,9 @@ def test_hdr_payload_exceptions():
 
     # unsupported word size
     with pytest.raises(ValueError):
-        payload = HdrPayload(1, HDR_PAYLOAD_COUNTS)
+        HdrPayload(1, HDR_PAYLOAD_COUNTS)
     with pytest.raises(ValueError):
-        payload = HdrPayload(1000, HDR_PAYLOAD_COUNTS)
+        HdrPayload(1000, HDR_PAYLOAD_COUNTS)
 
     # invalid cookie
     payload = HdrPayload(8, HDR_PAYLOAD_COUNTS)
@@ -378,6 +406,7 @@ def test_hdr_payload_exceptions():
     with pytest.raises(HdrCookieException):
         HdrPayload(2, compressed_payload=cpayload)
 
+
 def fill_hist_counts(histogram, last_index, start=0):
     # fill the counts of a given histogram and update the min/max/total count
     # accordingly
@@ -385,12 +414,14 @@ def fill_hist_counts(histogram, last_index, start=0):
         value_from_index = histogram.get_value_from_index(index)
         histogram.record_value(value_from_index, index)
 
+
 def check_hist_counts(histogram, last_index, multiplier=1, start=0):
     for index in range(start, last_index):
         assert(histogram.get_count_at_index(index) == multiplier * index)
 
 # This is the max latency used by wrk2
 WRK2_MAX_LATENCY = 24 * 60 * 60 * 1000000
+
 
 def check_hist_encode(word_size,
                       digits,
@@ -423,10 +454,12 @@ ENCODE_ARG_LIST = (
     (2, 2, 9340, 0, 100),    # V1=9144
 )
 
+
 @pytest.mark.codec
 def test_hist_encode():
     for args in ENCODE_ARG_LIST:
         check_hist_encode(*args)
+
 
 @pytest.mark.codec
 def check_hist_codec_b64(word_size, b64_wrap):
@@ -445,11 +478,13 @@ def check_hist_codec_b64(word_size, b64_wrap):
     histogram.decode_and_add(encoded)
     check_hist_counts(histogram, histogram.counts_len, multiplier=2)
 
+
 @pytest.mark.codec
 def test_hist_codec():
     for word_size in [2, 4, 8]:
         check_hist_codec_b64(word_size, True)
         check_hist_codec_b64(word_size, False)
+
 
 @pytest.mark.codec
 def test_hist_codec_partial():
@@ -482,6 +517,7 @@ ENCODE_SAMPLES_HDRHISTOGRAM_C = [
     'bfsoM4CPhw+IIJAkxnDXN+QcTIpyAPnGh6k='
 ]
 
+
 @pytest.mark.codec
 def test_hdr_interop():
     # decode and add the encoded histograms
@@ -492,6 +528,7 @@ def test_hdr_interop():
 
     # check the percentiles. min, max values match
     check_percentiles(histogram, corrected_histogram)
+
 
 def check_cod_perf():
     histogram = HdrHistogram(LOWEST, WRK2_MAX_LATENCY, 2)
@@ -505,6 +542,7 @@ def check_cod_perf():
         histogram.encode()
     delta = datetime.datetime.now() - start
     print(delta)
+
 
 def check_dec_perf():
     histogram = HdrHistogram(LOWEST, WRK2_MAX_LATENCY, 2)
@@ -520,19 +558,24 @@ def check_dec_perf():
     delta = datetime.datetime.now() - start
     print(delta)
 
+
 @pytest.mark.perf
 def test_cod_perf():
     cProfile.runctx('check_cod_perf()', globals(), locals())
+
 
 @pytest.mark.perf
 def test_dec_perf():
     cProfile.runctx('check_dec_perf()', globals(), locals())
 
+
 def check_decoded_hist_counts(hist, multiplier):
-    assert(hist)
+    assert hist
     check_hist_counts(hist, hist.counts_len, multiplier)
 
 HDR_LOG_NAME = 'hdr.log'
+
+
 @pytest.mark.log
 def test_log():
     # 3 histograms instances with various content
@@ -581,6 +624,7 @@ JHICCUP_CHECKLISTS = [
                 'accumulated_histogram.get_max_value()': 1796210687}}
 ]
 
+
 @pytest.mark.log
 def test_jHiccup_v2_log():
     accumulated_histogram = HdrHistogram(LOWEST, HIGHEST, SIGNIFICANT)
@@ -605,12 +649,14 @@ def test_jHiccup_v2_log():
 
         log_reader.close()
 
+
 @pytest.mark.log
 def test_output_percentile_distribution():
     histogram = load_histogram()
     histogram.output_percentile_distribution(open(os.devnull, 'wb'), 1000)
 
 ARRAY_SIZE = 10
+
 
 @pytest.mark.pyhdrh
 def test_add_array_errors():
@@ -645,10 +691,12 @@ def check_add_array(int_type):
     with pytest.raises(OverflowError):
         add_array(addressof(dst_array), addressof(src_array), ARRAY_SIZE, sizeof(int_type))
 
+
 @pytest.mark.pyhdrh
 def test_add_array():
     for int_type in [c_uint16, c_uint32, c_uint64]:
         check_add_array(int_type)
+
 
 @pytest.mark.pyhdrh
 def test_zz_encode_errors():
@@ -705,6 +753,7 @@ def check_zz_encode(int_type):
     for index in range(ARRAY_SIZE):
         assert(dst_array[index] == 2)
 
+
 @pytest.mark.pyhdrh
 def test_zz_encode():
     for int_type in [c_uint16, c_uint32, c_uint64]:
@@ -722,6 +771,7 @@ LARGE_NEGATIVE_VALUE = b'\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF'
 INDEX_SKIPPER_VALUE = b'\x01\x02\xFF\xFF\xFF\xFF\x0F\x02'
 # Truncated end
 TRUNCATED_VALUE = b'\xFF\xFF'
+
 
 @pytest.mark.pyhdrh
 def test_zz_decode_errors():
@@ -753,6 +803,7 @@ def test_zz_decode_errors():
     res = decode(b'BUMMER', 8, addressof(dst_array), ARRAY_SIZE, sizeof(c_uint16))
     assert(res['total'] == 0)
 
+
 def check_zz_identity(src_array, int_type, min_nz_index, max_nz_index, total_count, offset):
     dst_len = (sizeof(int_type) + 1) * ARRAY_SIZE
     dst = (c_uint8 * (offset + dst_len))()
@@ -773,6 +824,7 @@ def check_zz_identity(src_array, int_type, min_nz_index, max_nz_index, total_cou
 # A large positive value that can fit 16-bit signed
 ZZ_COUNTER_VALUE = 30000
 
+
 def check_zz_decode(int_type, hdr_len):
     src_array = (int_type * ARRAY_SIZE)()
     check_zz_identity(src_array, int_type, 0, 0, 0, hdr_len)
@@ -789,11 +841,13 @@ def check_zz_decode(int_type, hdr_len):
     check_zz_identity(src_array, int_type, 0, ARRAY_SIZE - 1,
                       ZZ_COUNTER_VALUE * ARRAY_SIZE, hdr_len)
 
+
 @pytest.mark.pyhdrh
 def test_zz_decode():
     for int_type in [c_uint16, c_uint32, c_uint64]:
         for hdr_len in [0, 8]:
             check_zz_decode(int_type, hdr_len)
+
 
 def hex_dump(label, str):
     print(label)

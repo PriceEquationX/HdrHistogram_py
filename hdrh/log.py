@@ -1,4 +1,4 @@
-'''
+"""
 A histogram log writer.
 A Histogram logs are used to capture full fidelity, per-time-interval
 histograms of a recorded value.
@@ -28,7 +28,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 from __future__ import division
 from builtins import object
 import datetime
@@ -36,15 +36,16 @@ import re
 import sys
 from hdrh.histogram import HdrHistogram
 
+
 class HistogramLogWriter(object):
 
     HISTOGRAM_LOG_FORMAT_VERSION = "1.2"
 
     def __init__(self, output_file):
-        '''Constructs a new HistogramLogWriter that will write into the specified file.
+        """Constructs a new HistogramLogWriter that will write into the specified file.
         Params:
             output_file the File to write to
-        '''
+        """
         self.log = output_file
         self.base_time = 0
 
@@ -53,7 +54,7 @@ class HistogramLogWriter(object):
                                   start_time_stamp_sec=0,
                                   end_time_stamp_sec=0,
                                   max_value_unit_ratio=1000000.0):
-        '''Output an interval histogram, with the given timestamp and a
+        """Output an interval histogram, with the given timestamp and a
         configurable maxValueUnitRatio.
         (note that the specified timestamp will be used, and the timestamp in
         the actual histogram will be ignored).
@@ -78,7 +79,7 @@ class HistogramLogWriter(object):
             max_value_unit_ratio The ratio by which to divide the histogram's max
                 value when reporting on it.
                 default: 1,000,000 (which is the msec : nsec ratio
-        '''
+        """
         if not start_time_stamp_sec:
             start_time_stamp_sec = \
                 (histogram.get_start_time_stamp() - self.base_time) / 1000.0
@@ -92,39 +93,39 @@ class HistogramLogWriter(object):
                         cpayload.decode('utf-8')))
 
     def output_start_time(self, start_time_msec):
-        '''Log a start time in the log.
+        """Log a start time in the log.
         Params:
             start_time_msec time (in milliseconds) since the absolute start time (the epoch)
-        '''
+        """
         self.log.write("#[StartTime: %f (seconds since epoch), %s]\n" %
                        (float(start_time_msec) / 1000.0,
                         datetime.fromtimestamp(start_time_msec).iso_format(' ')))
 
     def output_base_time(self, base_time_msec):
-        '''Log a base time in the log.
+        """Log a base time in the log.
         Params:
             base_time_msec time (in milliseconds) since the absolute start time (the epoch)
-        '''
+        """
         self.log.write("#[BaseTime: %f (seconds since epoch)]\n" %
                        (float(base_time_msec) / 1000.0))
 
     def output_comment(self, comment):
-        '''Log a comment to the log.
+        """Log a comment to the log.
         Comments will be preceded with with the '#' character.
         Params:
             comment the comment string.
-        '''
-        self.log.write("#%s\n" % (comment))
+        """
+        self.log.write("#%s\n" % comment)
 
     def output_legend(self):
-        '''Output a legend line to the log.
-        '''
+        """Output a legend line to the log.
+        """
         self.log.write("\"StartTimestamp\",\"Interval_Length\","
                        "\"Interval_Max\",\"Interval_Compressed_Histogram\"\n")
 
     def output_log_format_version(self):
-        '''Output a log format version to the log.
-        '''
+        """Output a log format version to the log.
+        """
         self.output_comment("[Histogram log format version " +
                             HistogramLogWriter.HISTOGRAM_LOG_FORMAT_VERSION + "]")
 
@@ -140,17 +141,18 @@ re_base_time = re.compile('#\[BaseTime: *([\d\.]*) ')
 # "%f,%f,%f,%s\n"
 re_histogram_interval = re.compile('([\d\.]*),([\d\.]*),([\d\.]*),(.*)')
 
+
 class HistogramLogReader(object):
 
     def __init__(self, input_file_name, reference_histogram):
-        '''Constructs a new HistogramLogReader that produces intervals read
+        """Constructs a new HistogramLogReader that produces intervals read
         from the specified file name.
         Params:
             input_file_name The name of the file to read from
             reference_histogram a histogram instance used as a reference to create
                                 new instances for all subsequent decoded interval
                                 histograms
-        '''
+        """
         self.start_time_sec = 0.0
         self.observed_start_time = False
         self.base_time_sec = 0.0
@@ -159,14 +161,14 @@ class HistogramLogReader(object):
         self.reference_histogram = reference_histogram
 
     def get_start_time_sec(self):
-        '''get the latest start time found in the file so far (or 0.0),
+        """get the latest start time found in the file so far (or 0.0),
         per the log file format explained above. Assuming the "#[StartTime:" comment
         line precedes the actual intervals recorded in the file, getStartTimeSec() can
         be safely used after each interval is read to determine's the offset of that
         interval's timestamp from the epoch.
         Return:
             latest Start Time found in the file (or 0.0 if non found)
-        '''
+        """
         return self.start_time_sec
 
     def _decode_next_interval_histogram(self,
@@ -174,7 +176,7 @@ class HistogramLogReader(object):
                                         range_start_time_sec=0.0,
                                         range_end_time_sec=sys.maxsize,
                                         absolute=False):
-        '''Read the next interval histogram from the log, if interval falls
+        """Read the next interval histogram from the log, if interval falls
         within an absolute or relative time range.
 
         Timestamps are assumed to appear in order in the log file, and as such
@@ -213,7 +215,7 @@ class HistogramLogReader(object):
 
         Exceptions:
             ValueError if there is a syntax error in one of the float fields
-        '''
+        """
         while 1:
             line = self.input_file.readline()
             if not line:
@@ -291,7 +293,7 @@ class HistogramLogReader(object):
                                     range_start_time_sec=0.0,
                                     range_end_time_sec=sys.maxsize,
                                     absolute=False):
-        '''Read the next interval histogram from the log, if interval falls
+        """Read the next interval histogram from the log, if interval falls
         within an absolute or relative time range.
 
         Timestamps are assumed to appear in order in the log file, and as such
@@ -329,7 +331,7 @@ class HistogramLogReader(object):
 
         Exceptions:
             ValueError if there is a syntax error in one of the float fields
-        '''
+        """
         return self._decode_next_interval_histogram(None,
                                                     range_start_time_sec,
                                                     range_end_time_sec,
@@ -340,7 +342,7 @@ class HistogramLogReader(object):
                                     range_start_time_sec=0.0,
                                     range_end_time_sec=sys.maxsize,
                                     absolute=False):
-        '''Read the next interval histogram from the log, if interval falls
+        """Read the next interval histogram from the log, if interval falls
         within an absolute or relative time range, and add it to the destination
         histogram (or to the reference histogram if dest_histogram is None)
 
@@ -381,7 +383,7 @@ class HistogramLogReader(object):
 
         Exceptions:
             ValueError if there is a syntax error in one of the float fields
-        '''
+        """
         if not dest_histogram:
             dest_histogram = self.reference_histogram
         return self._decode_next_interval_histogram(dest_histogram,
