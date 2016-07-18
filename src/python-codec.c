@@ -187,7 +187,7 @@ static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
     int bf_len;
     PyObject *res;
 
-    if (!PyArg_ParseTuple(args, "liiili", &vsrc, &max_index, &counts_len, &dest, &dest_len)) {
+    if (!PyArg_ParseTuple(args, "liili", &vsrc, &max_index, &counts_len, &dest, &dest_len)) {
         return NULL;
     }
     if (vsrc == NULL) {
@@ -257,7 +257,7 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
     int64_t min_nonzero_index = -1;
     int64_t max_nonzero_index = 0;
 
-    if (!PyArg_ParseTuple(args, "s#ilii", &src, &src_len,
+    if (!PyArg_ParseTuple(args, "s#ili", &src, &src_len,
                           &start_index,
                           &vdst, &max_index)) {
         return NULL;
@@ -347,7 +347,7 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
     int max_index;  /* i: entries from 0 to max_index-1 are added */
     int64_t total_count = 0;
     
-    if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index)) {
+    if (!PyArg_ParseTuple(args, "lli", &vdst, &vsrc, &max_index)) {
         return NULL;
     }
     if (vsrc == NULL) {
@@ -394,7 +394,7 @@ static PyObject *py_hdr_sub_array(PyObject *self, PyObject *args) {
     int max_index;  /* i: entries from 0 to max_index-1 are added */
     int64_t total_count = 0;
     
-    if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index)) {
+    if (!PyArg_ParseTuple(args, "lli", &vdst, &vsrc, &max_index)) {
         return NULL;
     }
     if (vsrc == NULL) {
