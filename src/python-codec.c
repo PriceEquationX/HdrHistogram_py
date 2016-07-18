@@ -130,40 +130,12 @@ static int zig_zag_encode_i64(uint8_t* buffer, int64_t signed_value) {
 /* Helper functions for reading and writing into various word size arrays */
 typedef uint64_t (*get_array_entry)(void *src, int index);
 
-static uint64_t get_array_entry16(void *src, int index) {
-    uint16_t *array = src;
-    return array[index];
-}
-
-static uint64_t get_array_entry32(void *src, int index) {
-    uint32_t *array = src;
-    return array[index];
-}
-
 static uint64_t get_array_entry64(void *src, int index) {
     uint64_t *array = src;
     return array[index];
 }
 
 typedef int (*set_array_entry)(void *src, int index, uint64_t value);
-
-static int set_array_entry16(void *src, int index, uint64_t value) {
-    uint16_t *array = src;
-    if (value > 0xFFFF) {
-        return -1;
-    }
-    array[index] = value;
-    return 0;
-}
-
-static int set_array_entry32(void *src, int index, uint64_t value) {
-    uint32_t *array = src;
-    if (value > 0xFFFFFFFF) {
-        return -1;
-    }
-    array[index] = (uint32_t) value;
-    return 0;
-}
 
 static int set_array_entry64(void *src, int index, uint64_t value) {
     uint64_t *array = src;
@@ -331,7 +303,7 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
             }
         }
     }
-    return Py_BuildValue("{s:i,s:i,s:i}",
+    return Py_BuildValue("{s:L,s:i,s:i}",
                         "total", total_count,
                         "min_nonzero_index", min_nonzero_index,
                         "max_nonzero_index", max_nonzero_index);
