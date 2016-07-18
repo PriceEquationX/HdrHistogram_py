@@ -35,8 +35,6 @@ import ctypes
 from ctypes import BigEndianStructure
 from ctypes import addressof
 from ctypes import c_byte
-from ctypes import c_short
-from ctypes import c_int
 from ctypes import c_uint
 from ctypes import c_longlong
 from ctypes import c_ulonglong
@@ -60,13 +58,6 @@ MAX_COUNTS_SIZE = 4 * 1024 * 1024
 
 def get_cookie_base(cookie):
     return cookie & ~0xf0
-
-
-def get_word_size_in_bytes_from_cookie(cookie):
-    if (get_cookie_base(cookie) == XTXV1_ENCODING_COOKIE_BASE) or \
-       (get_cookie_base(cookie) == XTXV1_COMPRESSION_COOKIE_BASE):
-        return XTXV1_MAX_WORD_SIZE_IN_BYTES
-    return (cookie & 0xf0) >> 4
 
 
 def get_encoding_cookie():
@@ -113,26 +104,16 @@ class PayloadHeader(BigEndianStructure):
         ("conversion_ratio_bits", c_ulonglong)]
 payload_header_size = ctypes.sizeof(PayloadHeader)
 
-# list of supported payload counter ctypes, indexed by the word size
-payload_counter_ctype = [None, None,
-                         c_short,      # index 2
-                         None,
-                         c_int,        # index 4
-                         None, None, None,
-                         c_longlong]   # index 8
-
-
 class HdrPayload(object):
     """A class that wraps the ctypes big endian struct that will hold the
     histogram wire format content (including the counters).
     """
-    def __init__(self, word_size, counts_len=0, compressed_payload=None):
+    def __init__(self, counts_len=0, compressed_payload=None):
         """Two ways to use this class:
         - for an empty histogram (pass counts_len>0 and compressed_payload=None)
         - for a decoded histogram (counts_len=0 and compressed_payload!=None)
 
         Params:
-            word_size counter size in bytes (2,4,8 byte counters are supported)
             counts_len number of counters to allocate
                 ignored if a compressed payload is provided (not None)
 
@@ -142,12 +123,11 @@ class HdrPayload(object):
                 counts array can be updated from the decoded varint buffer
                 None if no compressed payload is to be associated to this instance
         """
-        self.word_size = word_size
         self.counts_len = counts_len
         self._data = None
         try:
             # ctype counter type
-            self.counter_ctype = payload_counter_ctype[word_size]
+            self.counter_ctype = c_longlong
         except IndexError:
             raise ValueError('Invalid word size')
         if not self.counter_ctype:
@@ -173,8 +153,7 @@ class HdrPayload(object):
         self.counts_len = counts_len
         self._init_counts()
 
-        results = decode(self._data, payload_header_size, addressof(self.counts),
-                         counts_len, self.word_size)
+        results = decode(self._data, payload_header_size, addressof(self.counts), counts_len)
         # no longer needed
         self._data = None
         return results
@@ -217,9 +196,6 @@ class HdrPayload(object):
         cookie = self.payload.cookie
         if get_cookie_base(cookie) != XTXV1_ENCODING_COOKIE_BASE:
             raise HdrCookieException('Invalid cookie: %x' % cookie)
-        word_size = get_word_size_in_bytes_from_cookie(cookie)
-        if word_size != XTXV1_MAX_WORD_SIZE_IN_BYTES:
-            raise HdrCookieException('Invalid V2 cookie: %x' % cookie)
 
     def compress(self, counts_limit):
         """Compress this payload instance
@@ -232,7 +208,7 @@ class HdrPayload(object):
         if self.payload:
             # worst case varint encoded length is when each counter is at the maximum value
             # in this case 1 more byte per counter is needed due to the more bits
-            varint_len = counts_limit * (self.word_size + 1)
+            varint_len = counts_limit * XTXV1_MAX_WORD_SIZE_IN_BYTES
             # Add on space for the non zero value bits
             varint_len += int(math.ceil(self.counts_len/8))
             # allocate enough space to fit the header and the varint string
@@ -240,7 +216,6 @@ class HdrPayload(object):
 
             # encode past the payload header
             varint_len = encode(addressof(self.counts), counts_limit, self.counts_len,
-                                self.word_size,
                                 addressof(encode_buf) + payload_header_size,
                                 varint_len)
 
@@ -273,13 +248,10 @@ class HdrHistogramEncoder(object):
             hdr_payload if None will create a new HdrPayload instance for this
                 encoder, else will reuse the passed Hdrayload instance (useful
                 after decoding one and to associate it to a new histogram)
-            word_size counters size in bytes (2, 4 or 8)
-        Exceptions:
-            ValueError if the word_size value is unsupported
         """
         self.histogram = histogram
         if not hdr_payload:
-            self.payload = HdrPayload(histogram.word_size, histogram.counts_len)
+            self.payload = HdrPayload(histogram.counts_len)
             payload = self.payload.payload
             # those values never change across encodings
             payload.normalizing_index_offset = 0
@@ -368,14 +340,12 @@ class HdrHistogramEncoder(object):
     def add(self, other_encoder):
         add_array(addressof(self.get_counts()),
                   addressof(other_encoder.get_counts()),
-                  self.histogram.counts_len,
-                  self.histogram.word_size)
+                  self.histogram.counts_len)
 
     def sub(self, other_encoder):
         sub_array(addressof(self.get_counts()),
                   addressof(other_encoder.get_counts()),
-                  self.histogram.counts_len,
-                  self.histogram.word_size)
+                  self.histogram.counts_len)
 
 
 def _dump_series(start, stop, count):

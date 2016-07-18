@@ -25,9 +25,6 @@ limitations under the License.
 #include <stdlib.h>
 #include <limits.h>
 
-/* max number of bytes to encode a 64-bit value in LEB128 based on the word size */
-#define MAX_BYTES_LEB128(word_size) (word_size + 1)
-
 static int zig_zag_encode_i64(uint8_t* buffer, int64_t signed_value) {
     int64_t value = signed_value;
 
@@ -183,7 +180,6 @@ static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
     void *vsrc;       /* l: addressof a ctypes c_uint16, c_uint32 or c_uint64 array */
     int max_index;    /* i: encode entries [0..max_index-1] */
     int counts_len;
-    int word_size;    /* i: word size in bytes (2,4,8) for each array element */
     uint8_t *dest;    /* l: where to encode */
     int dest_len;     /* i: length of the destination buffer, must be >=(word_size+1)*max_index */
     get_array_entry get_entry;
@@ -191,7 +187,7 @@ static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
     int bf_len;
     PyObject *res;
 
-    if (!PyArg_ParseTuple(args, "liiili", &vsrc, &max_index, &counts_len, &word_size, &dest, &dest_len)) {
+    if (!PyArg_ParseTuple(args, "liiili", &vsrc, &max_index, &counts_len, &dest, &dest_len)) {
         return NULL;
     }
     if (vsrc == NULL) {
@@ -205,17 +201,10 @@ static PyObject *py_hdr_encode(PyObject *self, PyObject *args) {
     if (max_index == 0) {
         return Py_BuildValue("i", 0);
     }
-    if (word_size == sizeof(uint16_t)) {
-        get_entry = get_array_entry16;
-    } else if (word_size == sizeof(uint32_t)) {
-        get_entry = get_array_entry32;
-    } else if (word_size == sizeof(uint64_t)) {
-        get_entry = get_array_entry64;
-    } else {
-        PyErr_SetString(PyExc_ValueError, "Invalid word size");
-        return NULL;
-    }
-    if (dest_len < (word_size + 1) * max_index) {
+
+    get_entry = get_array_entry64;
+
+    if (dest_len < 9 * max_index) {
         PyErr_SetString(PyExc_ValueError, "Negative offset");
         return NULL;
     }
@@ -259,7 +248,6 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
     int start_index; /* i: start decoding from this offset, must be < src_len */
     void *vdst;     /* l: address of a counts array */
     int max_index;  /* i: number of entries in that array, must be > 0 */
-    int word_size;  /* i: word size of the array entries: 2, 4 or 8 */
     int bf_len;
     int count_loc;
     int read_index;
@@ -271,8 +259,7 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
 
     if (!PyArg_ParseTuple(args, "s#ilii", &src, &src_len,
                           &start_index,
-                          &vdst, &max_index,
-                          &word_size)) {
+                          &vdst, &max_index)) {
         return NULL;
     }
     if (vdst == NULL) {
@@ -287,16 +274,8 @@ static PyObject *py_hdr_decode(PyObject *self, PyObject *args) {
         PyErr_SetString(PyExc_IndexError, "Negative or null max index");
         return NULL;
     }
-    if (word_size == sizeof(uint16_t)) {
-        set_entry = set_array_entry16;
-    } else if (word_size == sizeof(uint32_t)) {
-        set_entry = set_array_entry32;
-    } else if (word_size == sizeof(uint64_t)) {
-        set_entry = set_array_entry64;
-    } else {
-        PyErr_SetString(PyExc_ValueError, "Invalid word size");
-        return NULL;
-    }
+
+    set_entry = set_array_entry64;
 
     bf_len = (max_index + 7) >> 3;
     read_index = start_index + bf_len;
@@ -366,10 +345,9 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
     void *vdst;     /* l: address of destination array first entry */
     void *vsrc;     /* l: address of source array first entry */
     int max_index;  /* i: entries from 0 to max_index-1 are added */
-    int word_size;  /* i: size of each entry in bytes 2,4,8 */
     int64_t total_count = 0;
     
-    if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index, &word_size)) {
+    if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index)) {
         return NULL;
     }
     if (vsrc == NULL) {
@@ -384,66 +362,24 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
         PyErr_SetString(PyExc_ValueError, "Negative max index");
         return NULL;
     }
-    if (word_size == sizeof(uint16_t)) {
-        uint16_t *src = vsrc;
-        uint16_t *dst = vdst;
-        int index;
-        /* check overflow */
-        // for (index=0; index < max_index; ++index) {
-        //     uint16_t value = src[index];
-        //     if (value && (((uint16_t)(dst[index] + value)) < dst[index])) {
-        //         PyErr_SetString(PyExc_OverflowError, "16-bit overflow");
-        //         return NULL;
-        //     }
-        // }
-        for (index=0; index < max_index; ++index) {
-            int16_t value = src[index];
-            if (value) {
-                dst[index] += value;
-                total_count += value;
-            }
+
+    uint64_t *src = vsrc;
+    uint64_t *dst = vdst;
+    int index;
+    /* check overflow */
+    // for (index=0; index < max_index; ++index) {
+    //     uint64_t value = src[index];
+    //     if (value && ((dst[index] + value) < dst[index])) {
+    //         PyErr_SetString(PyExc_OverflowError, "64-bit overflow");
+    //         return NULL;
+    //     }
+    // }
+    for (index=0; index < max_index; ++index) {
+        int64_t value = src[index];
+        if (value) {
+            dst[index] += value;
+            total_count += value;
         }
-    } else if (word_size == sizeof(uint32_t)) {
-        uint32_t *src = vsrc;
-        uint32_t *dst = vdst;
-        int index;
-        /* check overflow */
-        // for (index=0; index < max_index; ++index) {
-        //     uint32_t value = src[index];
-        //     if (value && (((uint32_t)(dst[index] + value)) < dst[index])) {
-        //         PyErr_SetString(PyExc_OverflowError, "32-bit overflow");
-        //         return NULL;
-        //     }
-        // }
-        for (index=0; index < max_index; ++index) {
-            int32_t value = src[index];
-            if (value) {
-                dst[index] += value;
-                total_count += value;
-            }
-        }
-    } else if (word_size == sizeof(uint64_t)) {
-        uint64_t *src = vsrc;
-        uint64_t *dst = vdst;
-        int index;
-        /* check overflow */
-        // for (index=0; index < max_index; ++index) {
-        //     uint64_t value = src[index];
-        //     if (value && ((dst[index] + value) < dst[index])) {
-        //         PyErr_SetString(PyExc_OverflowError, "64-bit overflow");
-        //         return NULL;
-        //     }
-        // }
-        for (index=0; index < max_index; ++index) {
-            int64_t value = src[index];
-            if (value) {
-                dst[index] += value;
-                total_count += value;
-            }
-        }
-    } else {
-        PyErr_SetString(PyExc_ValueError, "Invalid word size");
-        return NULL;
     }
     return Py_BuildValue("i", total_count);
 }
@@ -456,10 +392,9 @@ static PyObject *py_hdr_sub_array(PyObject *self, PyObject *args) {
     void *vdst;     /* l: address of destination array first entry */
     void *vsrc;     /* l: address of source array first entry */
     int max_index;  /* i: entries from 0 to max_index-1 are added */
-    int word_size;  /* i: size of each entry in bytes 2,4,8 */
     int64_t total_count = 0;
     
-    if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index, &word_size)) {
+    if (!PyArg_ParseTuple(args, "llii", &vdst, &vsrc, &max_index)) {
         return NULL;
     }
     if (vsrc == NULL) {
@@ -474,67 +409,26 @@ static PyObject *py_hdr_sub_array(PyObject *self, PyObject *args) {
         PyErr_SetString(PyExc_ValueError, "Negative max index");
         return NULL;
     }
-    if (word_size == sizeof(uint16_t)) {
-        uint16_t *src = vsrc;
-        uint16_t *dst = vdst;
-        int index;
-        /* check overflow */
-        // for (index=0; index < max_index; ++index) {
-        //     uint16_t value = src[index];
-        //     if (value && (((uint16_t)(dst[index] + value)) < dst[index])) {
-        //         PyErr_SetString(PyExc_OverflowError, "16-bit overflow");
-        //         return NULL;
-        //     }
-        // }
-        for (index=0; index < max_index; ++index) {
-            int16_t value = src[index];
-            if (value) {
-                dst[index] -= value;
-                total_count -= value;
-            }
+
+    uint64_t *src = vsrc;
+    uint64_t *dst = vdst;
+    int index;
+    /* check overflow */
+    // for (index=0; index < max_index; ++index) {
+    //     uint64_t value = src[index];
+    //     if (value && ((dst[index] + value) < dst[index])) {
+    //         PyErr_SetString(PyExc_OverflowError, "64-bit overflow");
+    //         return NULL;
+    //     }
+    // }
+    for (index=0; index < max_index; ++index) {
+        int64_t value = src[index];
+        if (value) {
+            dst[index] -= value;
+            total_count -= value;
         }
-    } else if (word_size == sizeof(uint32_t)) {
-        uint32_t *src = vsrc;
-        uint32_t *dst = vdst;
-        int index;
-        /* check overflow */
-        // for (index=0; index < max_index; ++index) {
-        //     uint32_t value = src[index];
-        //     if (value && (((uint32_t)(dst[index] + value)) < dst[index])) {
-        //         PyErr_SetString(PyExc_OverflowError, "32-bit overflow");
-        //         return NULL;
-        //     }
-        // }
-        for (index=0; index < max_index; ++index) {
-            int32_t value = src[index];
-            if (value) {
-                dst[index] -= value;
-                total_count -= value;
-            }
-        }
-    } else if (word_size == sizeof(uint64_t)) {
-        uint64_t *src = vsrc;
-        uint64_t *dst = vdst;
-        int index;
-        /* check overflow */
-        // for (index=0; index < max_index; ++index) {
-        //     uint64_t value = src[index];
-        //     if (value && ((dst[index] + value) < dst[index])) {
-        //         PyErr_SetString(PyExc_OverflowError, "64-bit overflow");
-        //         return NULL;
-        //     }
-        // }
-        for (index=0; index < max_index; ++index) {
-            int64_t value = src[index];
-            if (value) {
-                dst[index] -= value;
-                total_count -= value;
-            }
-        }
-    } else {
-        PyErr_SetString(PyExc_ValueError, "Invalid word size");
-        return NULL;
     }
+
     return Py_BuildValue("i", total_count);
 }
 

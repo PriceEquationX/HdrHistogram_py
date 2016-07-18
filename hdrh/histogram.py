@@ -68,7 +68,6 @@ class HdrHistogram(object):
                  lowest_trackable_value,
                  highest_trackable_value,
                  significant_figures,
-                 word_size=8,
                  b64_wrap=True,
                  hdr_payload=None):
         """Create a new histogram with given arguments
@@ -84,17 +83,12 @@ class HdrHistogram(object):
             significant_figures The number of significant decimal digits to
                 which the histogram will maintain value resolution and
                 separation. Must be a non-negative integer between 0 and 5.
-            word_size size of counters in bytes, only 2, 4, 8-byte counters
-                are supported (default is 8-byte or 64-bit counters)
             b64_wrap specifies if the encoding of this histogram should use
                 base64 wrapping (only useful if you need to encode the histogram
                 to save somewhere or send over the wire. By default base64
                 encoding is assumed
             hdr_payload only used for associating an existing payload created
-                from decoding an encoded histograme
-        Exceptions:
-            ValueError if the word_size value is unsupported
-                if significant_figures is invalid
+                from decoding an encoded histogram
         """
         if significant_figures < 0 or significant_figures > 17:
             raise ValueError('Invalid significant_figures')
@@ -113,7 +107,6 @@ class HdrHistogram(object):
         self.max_value = 0
         self.total_count = 0
         self.counts_len = (self.bucket_count + 1) * (self.sub_bucket_count // 2)
-        self.word_size = word_size
 
         if hdr_payload:
             payload = hdr_payload.payload
@@ -505,8 +498,7 @@ class HdrHistogram(object):
 
         if (self.bucket_count == other_hist.bucket_count) and \
            (self.sub_bucket_count == other_hist.sub_bucket_count) and \
-           (self.unit_magnitude == other_hist.unit_magnitude) and \
-           (self.word_size == other_hist.word_size):
+           (self.unit_magnitude == other_hist.unit_magnitude):
 
             # do an in-place addition of one array to another
             self.encoder.sub(other_hist.encoder)
@@ -538,8 +530,7 @@ class HdrHistogram(object):
 
         if (self.bucket_count == other_hist.bucket_count) and \
            (self.sub_bucket_count == other_hist.sub_bucket_count) and \
-           (self.unit_magnitude == other_hist.unit_magnitude) and \
-           (self.word_size == other_hist.word_size):
+           (self.unit_magnitude == other_hist.unit_magnitude):
 
             # do an in-place addition of one array to another
             self.encoder.add(other_hist.encoder)
@@ -604,8 +595,6 @@ class HdrHistogram(object):
                                  hdr_payload=hdr_payload)
         return histogram
 
-    def get_word_size(self):
-        return self.word_size
 
     def output_percentile_distribution(self,
                                        out_file,
