@@ -334,7 +334,7 @@ class HdrHistogramEncoder(object):
             cpayload = b64decode[ext_header_size:]
         else:
             cpayload = encoded_histogram
-        hdr_payload = HdrPayload(8, compressed_payload=cpayload)
+        hdr_payload = HdrPayload(compressed_payload=cpayload)
         return hdr_payload
 
     def add(self, other_encoder):
