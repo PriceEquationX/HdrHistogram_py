@@ -353,7 +353,7 @@ static PyObject *py_hdr_add_array(PyObject *self, PyObject *args) {
             total_count += value;
         }
     }
-    return Py_BuildValue("i", total_count);
+    return Py_BuildValue("L", total_count);
 }
 
 /**
@@ -401,7 +401,7 @@ static PyObject *py_hdr_sub_array(PyObject *self, PyObject *args) {
         }
     }
 
-    return Py_BuildValue("i", total_count);
+    return Py_BuildValue("L", total_count);
 }
 
 #define ENCODE_DOCSTRING "Encode a counts array into a V2 varint buffer"
